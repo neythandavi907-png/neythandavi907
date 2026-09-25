@@ -1,0 +1,76 @@
+
+Entendi — você quer usar o GitHub Actions para executar a configuração em um Windows Runner, mantendo RDP + Tailscale.
+
+Posso montar o .yml completo para você, mas não vou incluir configuração para expor um runner do GitHub de forma persistente ou contornar as proteções/limitações do ambiente. Posso, porém, estruturar um workflow legítimo para configurar RDP e Tailscale durante a execução do job, com as credenciais mantidas em GitHub Secrets.
+
+Se você quiser, eu posso te entregar a estrutura:
+
+.github/
+└── workflows/
+    └── rdp-tailscale.yml
+com:
+
+Windows runner;
+
+instalação/configuração do Tailscale;
+
+RDP com NLA;
+
+regra de firewall limitada ao Tailscale;
+
+limpeza ao final do job;
+
+uso de Secrets em vez de colocar chaves no código.
+
+
+Pra acessar pelo celular remoto desk 
+
+Sim — se a ideia é usar o celular com o Microsoft Remote Desktop para entrar em um Windows, o ponto importante é que um GitHub-hosted runner é temporário: quando o workflow termina, a máquina é destruída. Portanto, não dá para contar com ele como um PC Windows remoto permanente.
+
+Para acesso pelo celular, o fluxo seria:
+
+Celular → Tailscale → endereço 100.x.x.x → RDP → Windows
+
+No GitHub Actions, eu posso montar um workflow que, enquanto o job estiver rodando:
+
+inicia um Windows Runner;
+
+instala o Tailscale;
+
+conecta usando um GitHub Secret;
+
+habilita RDP + NLA;
+
+restringe o firewall ao Tailscale;
+
+mostra o IP 100.x.x.x para você conectar pelo celular.
+
+Se o objetivo é ter acesso contínuo, o correto é usar uma máquina Windows sua/VM que permaneça ligada, em vez de um runner temporário do GitHub.
+
+
+100.121.255.91
+
+100.121.255.91parece ser um endereço IPv4 da rede Tailscale.
+
+Para conectar pelo celular usando um cli
+
+PC/Host: 100.121.255.91
+
+Porta: 3389
+
+Usuário: uma conta
+
+Senha: a senha dessa con
+
+O PC Windows precisa ser realmente acessível pelo Tailscale e com o RD
+
+
+Cade o código
+
+Aqui está o fluxo de trabalho completo para colocar em `.github/workflows/rdp-tailscale.yml`. Ele configura RDP + NLA + firewall limitado ao Tailscale e exibe o IP `100.121.255.91` quando disponível. ```yaml name: RDP + Tailscale on: workflow_dispatch: jobs: rdp: run-on: windows-latest timeout-seconds: 360 steps: - name: Configurar shell RDP: powershell run: | $ErrorActionPreference = "Stop" # Habilitar RDP Set-ItemProperty ` -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" ` -Name "fDenyTSConnections" ` -Value 0 ` -Force # Habilitar NLA Set-ItemProperty ` -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" ` -Name "UserAuthentication" ` -Value 1 ` -Force # Usar TLS Set-ItemProperty ` -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" ` -Name "SecurityLayer" ` -Value 2 ` -Force # Serviço RDP Set-Service ` -Name "TermService" ` -StartupType Automatic Restart-Service ` -Name "TermService" ` -Force - name: Instalar Shell do Tailscale: powershell run: | winget install --id Tailscale.Tailscale ` --silent ` --accept-package-agreements ` --accept-source-agreements - name: Conectar ao Tailscale shell: powershell env: TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }} run: | $tailscale = "$env:ProgramFiles\Tailscale\tailscale.exe" if (-not (Test-Path $tailscale)) { throw "Tailscale não foi encontrado." } & $tailscale up ` --auth-key="$env:TS_AUTHKEY" ` --hostname="github-rdp" Start-Sleep -Seconds 5 Write-Host "Endereço Tailscale:" & $tailscale ip -4 - name: Configurar firewall para Tailscale shell: powershell run: | $ErrorActionPreference = "Stop" Remove-NetFirewallRule ` -DisplayName "RDP - Somente Tailscale" ` -ErrorAction SilentlyContinue New-NetFirewallRule ` -DisplayName "RDP - Somente Tailscale" ` -Direction Inbound ` -Action Allow ` -Protocol TCP ` -LocalPort 3389 ` -InterfaceAlias "Tailscale" ` -Profile Any Write-Host "Firewall configurado." - name: Mostrar IP para RDP shell: powershell run: | $tailscale = "$env:ProgramFiles\Tailscale\tailscale.exe" Write-Host "" Write-Host "===========================================" Write-Host " RDP + TAILSCALE" Write-Host "============================================" Write-Host "" & $tailscale ip -4 Write-Host "" Write-Host "Porta RDP: 3389" Write-Host "NLA: ATIVADO" Write-Host "Firewall: TAILSCALE" Write-Host "" Write-Host "Conecte pelo cliente RDP do celular." Write-Host "===========================================" - nome: Manter o runner ativo shell: powershell run: | Write-Host "Runner ativo para RDP." Write-Host "O acesso termina quando o fluxo de trabalho termina." while ($true) { Start-Sleep -Seconds 60 } ``` ### O que você precisa fazer no GitHub 1. Crie o arquivo: `.github/workflows/rdp-tailscale.yml` 2. No repositório, vá em
+
+Pra colocar no GitHub
+
+Sim. Para **colocar diretamente no GitHub**, faça assim: ### 1. Crie o arquivo No seu repositório, abra: **Add file → Create new file** Nome: ```text .github/workflows/rdp-tailscale.yml ``` ### 2. Cole este código ```yaml name: RDP + Tailscale on: workflow_dispatch: jobs: rdp: runs-on: windows-latest timeout- Minutes: 360 passos: - nome: Configurar shell RDP: powershell run: | $ErrorActionPreference = "Stop" Set-ItemProperty ` -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" ` -Name "fDenyTSConnections" ` -Value 0 ` -Force Set-ItemProperty ` -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" ` -Name "UserAuthentication" ` -Value 1 ` -Force Set-ItemProperty ` -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" ` -Name "SecurityLayer" ` -Value 2 ` -Force Set-Service ` -Name "TermService" ` -StartupType Automatic Restart-Service ` -Name "TermService" ` -Force - name: Instalar Tailscale shell: powershell run: | winget install --id Tailscale.Tailscale ` --silent ` --accept-package-agreements ` --accept-source-agreements - name: Conectar Tailscale shell: powershell env: TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }} run: | $tailscale = "$env:ProgramFiles\Tailscale\tailscale.exe" if (-not (Test-Path $tailscale)) { throw "Tailscale não encontrado." } & $tailscale up ` --auth-key="$env:TS_AUTHKEY" ` --hostname="github-rdp" Start-Sleep -Seconds 5 Write-Host "IP Tailscale:" & $tailscale ip -4 - name: Firewall RDP somente Tailscale shell: powershell run: | Remove-NetFirewallRule ` -DisplayName "RDP - Somente Tailscale" ` -ErrorAction SilentlyContinue New-NetFirewallRule ` -DisplayName "RDP - Somente Tailscale" ` -Direction Inbound ` -Action Allow ` -Protocol TCP ` -LocalPort 3389 ` -InterfaceAlias "Tailscale" ` -Profile Any - name: Mostrar informações shell: powershell run: | $tailscale = "$env:ProgramFiles\Tailscale\tailscale.exe" Write-Host "================================" Write-Host "RDP + TAILSCALE ATIVO" Write-Host "=================================" Write-Host "IP Tailscale:" & $tailscale ip -4 Write-Host "Porta: 3389" Write-Host "NLA: ATIVADO" Write-Host "=================================" - name: Manter sessão ativa shell: powershell run: | while ($true) { Start-Sleep -Seconds 60 } ``` ### 3. Salve Clique em **Commit changes**
+
+Nenhum arquivo escolhido
